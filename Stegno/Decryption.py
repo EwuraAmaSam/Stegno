@@ -1,0 +1,236 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox
+import numpy as np
+from moviepy.editor import AudioFileClip
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import pygame
+import os
+from scipy.io.wavfile import write as write_wav
+import scipy.io.wavfile
+import shutil
+
+# Initialize pygame
+pygame.mixer.init()
+
+# Create the main application window
+root = tk.Tk()
+root.title("Decoder")
+
+# Dropdown menu for decryption methods
+decryption_methods = ["Reverse", "Subtraction"]
+selected_method = tk.StringVar()
+selected_method.set(decryption_methods[0])
+
+# Define file_path and converted_file_path variables globally
+file_path = None
+converted_file_path = None
+
+def open_file():
+    global file_path, converted_file_path
+    file_path = filedialog.askopenfilename()
+    if file_path:
+        # Update the label text with the selected file's name
+        text_label.config(text=os.path.basename(file_path))
+        # Convert the audio file to WAV format
+        converted_file_path = os.path.splitext(file_path)[0] + ".wav"
+        if not os.path.exists(converted_file_path):
+            clip = AudioFileClip(file_path)
+            clip.write_audiofile(converted_file_path)
+        # Plot the audio signal
+        plot_audio(converted_file_path)
+        # Play the audio
+        play_audio(converted_file_path)
+
+def plot_audio(file_path):
+    try:
+        # Load audio data using moviepy
+        clip = AudioFileClip(file_path)
+        frames = np.array(list(clip.iter_frames()))
+        framerate = clip.fps
+
+        # Plot the audio signal
+        fig = plt.figure(figsize=(3, 2))  # Set a smaller figure size
+        plt.plot(frames)
+        plt.title("Audio Signal")
+        plt.xlabel("Time (samples)")
+        plt.ylabel("Amplitude")
+        plt.grid(True)
+
+        # Embed the Matplotlib figure in the Tkinter window
+        canvas = FigureCanvasTkAgg(fig, master=root)
+        canvas.draw()
+        canvas.get_tk_widget().pack()
+
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to open {file_path}: {e}")
+
+def play_audio(file_path):
+    try:
+        # Load and play the converted audio file
+        pygame.mixer.music.load(file_path)
+        pygame.mixer.music.play()
+
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to play {file_path}: {e}")
+
+def reverse_audio(file_path):
+    try:
+        # Load audio data using moviepy
+        clip = AudioFileClip(file_path)
+        frames = np.array(list(clip.iter_frames()))
+
+        # Reverse the audio frames
+        reversed_frames = np.flip(frames, axis=0)
+
+        # Return only the reversed frames
+        return reversed_frames
+
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to reverse audio: {e}")
+        return None
+
+def play_reversed_audio(reversed_frames, framerate):
+    try:
+        # Create a temporary WAV file to save the reversed audio
+        temp_file_path = "reversed_audio.wav"
+        # Write the reversed frames to the temporary WAV file
+        scipy.io.wavfile.write(temp_file_path, framerate, reversed_frames)
+
+        # Load and play the reversed audio using pygame
+        pygame.mixer.music.load(temp_file_path)
+        pygame.mixer.music.play()
+
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to play reversed audio: {e}")
+
+def subtract_noise(file_path):
+    try:
+        # Load audio data using moviepy
+        clip = AudioFileClip(file_path)
+        frames = np.array(list(clip.iter_frames()))
+        
+        # Remove noise from audio by subtracting mean
+        cleaned_frames = frames - np.mean(frames)
+
+        return cleaned_frames
+
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to remove noise from audio: {e}")
+        return None
+
+def play_cleaned_audio(cleaned_frames, framerate):
+    try:
+        # Create a temporary WAV file to save the cleaned audio
+        temp_file_path = "cleaned_audio.wav"
+        # Write the cleaned frames to the temporary WAV file
+        scipy.io.wavfile.write(temp_file_path, framerate, cleaned_frames)
+
+        # Load and play the cleaned audio using pygame
+        pygame.mixer.music.load(temp_file_path)
+        pygame.mixer.music.play()
+
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to play cleaned audio: {e}")
+
+def decrypt_audio():
+    global file_path, converted_file_path
+    if selected_method.get() == "Reverse":
+        if file_path and converted_file_path:
+            reversed_frames = reverse_audio(converted_file_path)
+            if reversed_frames is not None:
+                # Plot the reversed audio signal
+                fig = plt.figure(figsize=(3, 2))
+                plt.plot(reversed_frames)
+                plt.title("Decrypted Audio Signal")
+                plt.xlabel("Time (samples)")
+                plt.ylabel("Amplitude")
+                plt.grid(True)
+
+                # Embed the Matplotlib figure in the Tkinter window
+                canvas = FigureCanvasTkAgg(fig, master=root)
+                canvas.draw()
+                canvas.get_tk_widget().pack()
+
+                # Get the framerate separately
+                clip = AudioFileClip(file_path)
+                framerate = clip.fps
+
+                # Play the reversed audio
+                play_reversed_audio(reversed_frames, framerate)
+
+        else:
+            messagebox.showerror("Error", "Please select an audio file first.")
+    elif selected_method.get() == "Subtraction":
+        if file_path and converted_file_path:
+            cleaned_frames = subtract_noise(converted_file_path)
+            if cleaned_frames is not None:
+                # Plot the cleaned audio signal
+                fig = plt.figure(figsize=(3, 2))
+                plt.plot(cleaned_frames)
+                plt.title("Decrypted Audio Signal")
+                plt.xlabel("Time (samples)")
+                plt.ylabel("Amplitude")
+                plt.grid(True)
+
+                # Embed the Matplotlib figure in the Tkinter window
+                canvas = FigureCanvasTkAgg(fig, master=root)
+                canvas.draw()
+                canvas.get_tk_widget().pack()
+
+                # Get the framerate separately
+                clip = AudioFileClip(file_path)
+                framerate = clip.fps
+
+                # Play the cleaned audio
+                play_cleaned_audio(cleaned_frames, framerate)
+
+        else:
+            messagebox.showerror("Error", "Please select an audio file first.")
+
+# Set the fixed size of the window
+window_width = 400
+window_height = 800
+root.geometry(f"{window_width}x{window_height}")
+
+# Disable window resizing
+root.resizable(False, False)
+
+# Create a Frame for the header
+header_frame = tk.Frame(root, bg="yellow")
+header_frame.pack(fill=tk.X)
+
+# Put the program name in the header
+header_text = tk.Label(header_frame, text="Decoder", font=("Helvetica", 17, "bold"), bg="yellow", fg="black", pady=15)
+header_text.pack(side=tk.RIGHT, padx=10, pady=10)
+
+# Put the program tagline in the header.
+left_text = tk.Label(header_frame, text="Decode encrypted audio...", font=("Helvetica", 10), bg="yellow", fg="black", pady=15)
+left_text.pack(side=tk.LEFT, padx=10, pady=10)
+
+# Create a frame for uploading the audio
+upload_audio_frame = tk.Frame(root)  # Set the background color to yellow
+upload_audio_frame.pack(fill=tk.X, padx=10, pady=20, ipadx=10)  # Adjust padding and add internal padding
+
+# Text showing file name
+text_label = tk.Label(upload_audio_frame, text="Audio")
+text_label.pack(side=tk.LEFT, padx=(30, 20))  # Add padding on the right side
+
+# Create a Button widget
+button = tk.Button(upload_audio_frame, text="Upload Audio", command=open_file)
+button.pack(side=tk.RIGHT, padx=(20, 30))  # Add padding on the left side
+
+# Create the dropdown menu for decryption methods
+dropdown = tk.OptionMenu(root, selected_method, *decryption_methods)
+dropdown.pack()
+
+# Create a Frame for the buttons
+button_frame = tk.Frame(root)
+button_frame.pack(fill=tk.X, padx=10, pady=10)
+
+# Create the Decrypt button
+decrypt_button = tk.Button(button_frame, text="Decrypt Audio", command=decrypt_audio)
+decrypt_button.pack(side=tk.LEFT, padx=10)
+
+# Run the Tkinter event loop
+root.mainloop()
